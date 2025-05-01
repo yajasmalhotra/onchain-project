@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Coins, Users } from "lucide-react"
+import { Coins, Users, AlertTriangle } from "lucide-react"
 import { useAccount } from "wagmi"
 import { 
   Dialog, 
@@ -14,6 +14,7 @@ import {
   DialogTitle 
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import Link from "next/link"
 
 // Mock data - will be replaced with real data fetching
 const mockBets = {
@@ -48,7 +49,7 @@ const mockBets = {
     endDate: "July 10, 2025",
     description: "This bet will be won if SOL price exceeds $150 by the end date.",
     totalPool: "1.5 ETH",
-    status: "active",
+    status: "won",
   },
   "4": {
     id: "4",
@@ -59,7 +60,7 @@ const mockBets = {
     endDate: "December 31, 2025",
     description: "This bet will be won if Dogecoin becomes one of the top 3 cryptocurrencies by market cap.",
     totalPool: "20.0 ETH",
-    status: "active",
+    status: "lost",
   }
 }
 
@@ -67,7 +68,7 @@ export function BetClient({ betId }: { betId: string }) {
   const { address } = useAccount()
   const [isOwner, setIsOwner] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const bet = mockBets[betId as keyof typeof mockBets] || mockBets["1"]
+  const bet = mockBets[betId as keyof typeof mockBets]
   
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -75,6 +76,12 @@ export function BetClient({ betId }: { betId: string }) {
   const [betError, setBetError] = useState("")
   
   useEffect(() => {
+    // If bet doesn't exist, there's no need to check ownership
+    if (!bet) {
+      setIsLoading(false)
+      return
+    }
+    
     const checkIfOwner = async () => {
       setIsLoading(true)
       try {
@@ -95,7 +102,33 @@ export function BetClient({ betId }: { betId: string }) {
       setIsOwner(false)
       setIsLoading(false)
     }
-  }, [address, betId, bet.creator])
+  }, [address, betId, bet?.creator])
+  
+  // If bet not found, display a "Not Found" page
+  if (!bet) {
+    return (
+      <div className="max-w-4xl mx-auto py-8">
+        <Card className="bg-white/10 border-white/20 backdrop-blur-sm text-center p-8">
+          <CardContent className="p-8">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <div className="h-16 w-16 rounded-full bg-neon-pink/20 flex items-center justify-center">
+                <AlertTriangle className="h-8 w-8 text-neon-pink" />
+              </div>
+              <CardTitle className="text-2xl text-white">Bet Not Found</CardTitle>
+              <CardDescription className="text-white/70 text-lg">
+                The bet with ID "{betId}" does not exist or has been removed.
+              </CardDescription>
+              <Link href="/" className="mt-6">
+                <Button className="bg-neon-yellow text-black hover:bg-neon-yellow/90 mt-4">
+                  Back to Home
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
   
   const handleOpenBetDialog = () => {
     if (!address) {
