@@ -4,7 +4,7 @@ import { formatEther, parseEther } from 'viem'
 import { sepolia } from 'wagmi/chains'
 
 // Contract address
-export const CONTRACT_ADDRESS = '0xfe051ad21bc4c2195b14262160f89dd8d7dca437'
+export const CONTRACT_ADDRESS = '0x097b713beb1156459f89f33b82028c53675c0979'
 
 // Contract ABI
 export const CONTRACT_ABI = [
