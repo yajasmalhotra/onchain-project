@@ -1,9 +1,9 @@
 import { http, createConfig } from 'wagmi';
-import { sepolia } from 'wagmi/chains';
+import { baseSepolia, sepolia } from 'wagmi/chains';
 import { injected, coinbaseWallet } from 'wagmi/connectors';
 
 export const config = createConfig({
-  chains: [sepolia],
+  chains: [baseSepolia],
   connectors: [
     injected({
       target: 'metaMask',
@@ -16,7 +16,7 @@ export const config = createConfig({
     }),
   ],
   transports: {
-    [sepolia.id]: http(),
+    [baseSepolia.id]: http(),
   },
   ssr: true,
   batch: {
