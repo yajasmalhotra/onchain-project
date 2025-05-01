@@ -51,6 +51,30 @@ const mockBets = [
 
 export default function HomePage() {
   const [open, setOpen] = useState(false)
+  const [betName, setBetName] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    
+    try {
+      // TODO: Replace with actual wallet connection logic
+      const mockWalletAddress = "0x1234...5678"
+      console.log("Bet Name:", betName)
+      console.log("Wallet Address:", mockWalletAddress)
+      
+      // Show confirmation
+      alert("Bet created successfully!")
+      setOpen(false)
+      setBetName("")
+    } catch (error) {
+      console.error("Error creating bet:", error)
+      alert("Failed to create bet. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <>
@@ -80,23 +104,32 @@ export default function HomePage() {
                   Create a new bet for others to participate in.
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="bet-name" className="text-white">
-                    Bet Name
-                  </Label>
-                  <Input
-                    id="bet-name"
-                    placeholder="e.g., ETH Price > $3,000 by June"
-                    className="bg-white/10 text-white border-white/20"
-                  />
+              <form onSubmit={handleSubmit}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="bet-name" className="text-white">
+                      Bet Name
+                    </Label>
+                    <Input
+                      id="bet-name"
+                      placeholder="e.g., ETH Price > $3,000 by June"
+                      className="bg-white/10 text-white border-white/20"
+                      value={betName}
+                      onChange={(e) => setBetName(e.target.value)}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button type="submit" className="bg-neon-pink text-white hover:bg-neon-pink/90">
-                  Create Bet <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </DialogFooter>
+                <DialogFooter>
+                  <Button 
+                    type="submit" 
+                    className="bg-neon-pink text-white hover:bg-neon-pink/90"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Creating..." : "Create Bet"} <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </DialogFooter>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
