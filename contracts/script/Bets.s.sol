@@ -2,17 +2,15 @@
 pragma solidity ^0.8.13;
 
 import {Script, console} from "forge-std/Script.sol";
-import {Counter} from "../src/Counter.sol";
+import {Bets} from "../src/Bets.sol";
 
-contract CounterScript is Script {
-    Counter public counter;
-
-    function setUp() public {}
-
+contract BetsScript is Script {
     function run() public {
         vm.startBroadcast();
 
-        counter = new Counter();
+        address admin = 0x67a8f5F7936DC353D8E0A5bEDDb54f6C9ecA77CC;
+
+        new Bets(admin);
 
         vm.stopBroadcast();
     }
