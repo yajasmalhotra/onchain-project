@@ -6,7 +6,7 @@ import { Header } from "@/components/layout/Header";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Betting Platform",
+  title: "EtherBets - Decentralized Betting Platform",
   description: "Create and enter bets on the blockchain",
 };
 
@@ -17,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className={`${inter.className} min-h-screen bg-gradient-to-br from-electric-purple to-cyber-blue`}>
         <Header />
         <main className="container mx-auto px-4 py-8">
           {children}
