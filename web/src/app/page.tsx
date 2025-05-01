@@ -77,56 +77,24 @@ export default function HomePage() {
               <DialogHeader>
                 <DialogTitle className="text-white">Create a New Bet</DialogTitle>
                 <DialogDescription className="text-white/70">
-                  Set up your bet parameters and stake your ETH.
+                  Create a new bet for others to participate in.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="bet-title" className="text-white">
-                    Bet Title
+                  <Label htmlFor="bet-name" className="text-white">
+                    Bet Name
                   </Label>
                   <Input
-                    id="bet-title"
+                    id="bet-name"
                     placeholder="e.g., ETH Price > $3,000 by June"
                     className="bg-white/10 text-white border-white/20"
                   />
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="bet-type" className="text-white">
-                    Bet Type
-                  </Label>
-                  <Select>
-                    <SelectTrigger className="bg-white/10 text-white border-white/20">
-                      <SelectValue placeholder="Select bet type" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-cyber-blue text-white">
-                      <SelectItem value="price">Price Prediction</SelectItem>
-                      <SelectItem value="event">Event Outcome</SelectItem>
-                      <SelectItem value="custom">Custom Oracle</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="bet-amount" className="text-white">
-                    Bet Amount (ETH)
-                  </Label>
-                  <Input
-                    id="bet-amount"
-                    type="number"
-                    placeholder="0.1"
-                    className="bg-white/10 text-white border-white/20"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="bet-end-date" className="text-white">
-                    End Date
-                  </Label>
-                  <Input id="bet-end-date" type="date" className="bg-white/10 text-white border-white/20" />
-                </div>
               </div>
               <DialogFooter>
                 <Button type="submit" className="bg-neon-pink text-white hover:bg-neon-pink/90">
-                  Place Bet <ArrowRight className="ml-2 h-4 w-4" />
+                  Create Bet <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </DialogFooter>
             </DialogContent>
