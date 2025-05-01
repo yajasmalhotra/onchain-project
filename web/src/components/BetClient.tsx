@@ -111,6 +111,7 @@ export function BetClient({ betId }: { betId: string }) {
     side1Participants: side1Participants?.length || 0,
     side2Participants: side2Participants?.length || 0,
     totalParticipants: (side1Participants?.length || 0) + (side2Participants?.length || 0),
+    winningSide: bet[7] as 0 | 1 | 2, // Assuming winningSide is at index 7
   } : null
   
   // If bet not found, display a "Not Found" page
@@ -337,6 +338,20 @@ export function BetClient({ betId }: { betId: string }) {
                 </div>
               </div>
             </div>
+
+            {/* Display Winning Side if Settled */}
+            {activeBet.settled && activeBet.winningSide !== 0 && (
+              <div className="pt-4 text-center">
+                <p className="text-lg font-medium text-white">
+                  Winning Side: 
+                  <span className={`ml-2 font-semibold ${
+                    activeBet.winningSide === 1 ? 'text-neon-yellow' : 'text-neon-pink'
+                  }`}>
+                    {activeBet.winningSide === 1 ? activeBet.side1Title : activeBet.side2Title}
+                  </span>
+                </p>
+              </div>
+            )}
 
             <div className="pt-4">
               {isLoading ? (
