@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -17,78 +17,197 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowRight, Coins, Plus, Sparkles, Trophy, User, Users } from "lucide-react"
 import { useAccount } from 'wagmi'
+import { useContract } from "@/hooks/useContract"
+import { formatEther } from "viem"
+import Link from "next/link"
 
-// Mock data for demonstration - Bets created by the user
-const mockOwnedBets = [
-  {
-    id: "1",
-    title: "ETH Price > $3,000",
-    amount: "0.5 ETH",
-    odds: "2.5x",
-    status: "active",
-    endDate: "May 15, 2025",
-    potentialWinnings: "1.25 ETH",
-    isOwner: true,
-    participants: 5,
-  },
-  {
-    id: "2",
-    title: "BTC/ETH Ratio < 15",
-    amount: "0.2 ETH",
-    odds: "3.2x",
-    status: "won",
-    endDate: "April 28, 2025",
-    potentialWinnings: "0.64 ETH",
-    isOwner: true,
-    participants: 8,
-  },
-]
-
-// Mock data for demonstration - Bets the user has participated in
-const mockParticipatedBets = [
-  {
-    id: "3",
-    title: "Total ETH Staked > 30M",
-    amount: "0.1 ETH",
-    odds: "4.0x",
-    status: "lost",
-    endDate: "April 20, 2025",
-    potentialWinnings: "0.4 ETH",
-    isOwner: false,
-    creator: "0x7890...abcd",
-  },
-  {
-    id: "4",
-    title: "SOL Price < $150",
-    amount: "0.15 ETH",
-    odds: "2.8x",
-    status: "active",
-    endDate: "June 10, 2025",
-    potentialWinnings: "0.42 ETH",
-    isOwner: false,
-    creator: "0x3456...ef12",
-  },
-]
+// Define bet interface for typechecking
+interface BetData {
+  id: string
+  title: string
+  creator: string
+  side1Title: string
+  side2Title: string
+  side1Total: string
+  side2Total: string
+  totalPool: string
+  settled: boolean
+  side1Participants: number
+  side2Participants: number
+  totalParticipants: number
+  yourSide?: 1 | 2
+  yourAmount?: string
+}
 
 export default function HomePage() {
   const [open, setOpen] = useState(false)
-  const [betName, setBetName] = useState("")
+  const [title, setTitle] = useState("")
+  const [side1Title, setSide1Title] = useState("")
+  const [side2Title, setSide2Title] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
+  const [ownedBets, setOwnedBets] = useState<BetData[]>([])
+  const [participatedBets, setParticipatedBets] = useState<BetData[]>([])
+  const [isLoadingOwned, setIsLoadingOwned] = useState(true)
+  const [isLoadingParticipated, setIsLoadingParticipated] = useState(true)
   const { address, isConnected } = useAccount()
+
+  // Contract hooks
+  const { 
+    useGetOwnerBetIds, 
+    useGetParticipantBetIds, 
+    useGetBet, 
+    useGetAllSide1Participants, 
+    useGetAllSide2Participants,
+    useCreateBet 
+  } = useContract()
+  
+  const { data: ownedBetIds } = useGetOwnerBetIds(address || "0x0") 
+  const { data: participatedBetIds } = useGetParticipantBetIds(address || "0x0")
+  const { createBet, isLoading: isCreatingBet } = useCreateBet()
+
+  useEffect(() => {
+    const fetchOwnedBets = async () => {
+      if (!address || !ownedBetIds || ownedBetIds.length === 0) {
+        setOwnedBets([])
+        setIsLoadingOwned(false)
+        return
+      }
+
+      try {
+        const fetchedBets = await Promise.all(
+          ownedBetIds.map(async (betId) => {
+            const id = betId.toString()
+            const bet = await useGetBet(id).data
+            const side1Participants = await useGetAllSide1Participants(id).data || []
+            const side2Participants = await useGetAllSide2Participants(id).data || []
+            
+            if (!bet) return null
+            
+            return {
+              id,
+              title: bet[5] as string, // title is at index 5
+              creator: bet[0] as string, // owner is at index 0
+              side1Title: bet[1] as string, // side1Title is at index 1
+              side2Title: bet[2] as string, // side2Title is at index 2
+              side1Total: formatEther(bet[3] as bigint), // side1Total is at index 3
+              side2Total: formatEther(bet[4] as bigint), // side2Total is at index 4
+              totalPool: formatEther((bet[3] as bigint) + (bet[4] as bigint)),
+              settled: bet[6] as boolean, // settled is at index 6
+              side1Participants: side1Participants.length,
+              side2Participants: side2Participants.length,
+              totalParticipants: (side1Participants.length) + (side2Participants.length),
+            }
+          })
+        )
+        
+        // Filter out nulls
+        const validBets = fetchedBets.filter(Boolean) as BetData[]
+        setOwnedBets(validBets)
+      } catch (error) {
+        console.error("Error fetching owned bets:", error)
+        setOwnedBets([])
+      } finally {
+        setIsLoadingOwned(false)
+      }
+    }
+
+    fetchOwnedBets()
+  }, [address, ownedBetIds])
+
+  useEffect(() => {
+    const fetchParticipatedBets = async () => {
+      if (!address || !participatedBetIds || participatedBetIds.length === 0) {
+        setParticipatedBets([])
+        setIsLoadingParticipated(false)
+        return
+      }
+
+      try {
+        const fetchedBets = await Promise.all(
+          participatedBetIds.map(async (betId) => {
+            const id = betId.toString()
+            const bet = await useGetBet(id).data
+            const side1Participants = await useGetAllSide1Participants(id).data || []
+            const side2Participants = await useGetAllSide2Participants(id).data || []
+            
+            if (!bet) return null
+            
+            // Find which side the user participated in and how much they bet
+            let yourSide: 1 | 2 | undefined
+            let yourAmount = "0"
+            
+            const side1Part = side1Participants.find(p => 
+              (p._address as string).toLowerCase() === address.toLowerCase()
+            )
+            
+            const side2Part = side2Participants.find(p => 
+              (p._address as string).toLowerCase() === address.toLowerCase()
+            )
+            
+            if (side1Part) {
+              yourSide = 1
+              yourAmount = formatEther(side1Part.amount as bigint)
+            } else if (side2Part) {
+              yourSide = 2
+              yourAmount = formatEther(side2Part.amount as bigint)
+            }
+            
+            return {
+              id,
+              title: bet[5] as string, // title is at index 5
+              creator: bet[0] as string, // owner is at index 0
+              side1Title: bet[1] as string, // side1Title is at index 1
+              side2Title: bet[2] as string, // side2Title is at index 2
+              side1Total: formatEther(bet[3] as bigint), // side1Total is at index 3
+              side2Total: formatEther(bet[4] as bigint), // side2Total is at index 4
+              totalPool: formatEther((bet[3] as bigint) + (bet[4] as bigint)),
+              settled: bet[6] as boolean, // settled is at index 6
+              side1Participants: side1Participants.length,
+              side2Participants: side2Participants.length,
+              totalParticipants: (side1Participants.length) + (side2Participants.length),
+              yourSide,
+              yourAmount
+            }
+          })
+        )
+        
+        // Filter out nulls
+        const validBets = fetchedBets.filter(Boolean) as BetData[]
+        setParticipatedBets(validBets)
+      } catch (error) {
+        console.error("Error fetching participated bets:", error)
+        setParticipatedBets([])
+      } finally {
+        setIsLoadingParticipated(false)
+      }
+    }
+
+    fetchParticipatedBets()
+  }, [address, participatedBetIds])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    if (!title || !side1Title || !side2Title) {
+      alert("Please fill in all fields")
+      return
+    }
+    
     setIsSubmitting(true)
     
     try {
-      console.log("Bet Name:", betName)
-      console.log("Wallet Address:", address)
+      await createBet({
+        title,
+        side1Title,
+        side2Title,
+      })
       
-      // Show confirmation
-      alert("Bet created successfully!")
+      // Reset form and close dialog
+      setTitle("")
+      setSide1Title("")
+      setSide2Title("")
       setOpen(false)
-      setBetName("")
     } catch (error) {
       console.error("Error creating bet:", error)
       alert("Failed to create bet. Please try again.")
@@ -99,75 +218,96 @@ export default function HomePage() {
 
   // Filter bets based on active tab
   const getFilteredOwnedBets = () => {
-    if (activeTab === "all") return mockOwnedBets
-    return mockOwnedBets.filter(bet => 
-      (activeTab === "active" && bet.status === "active") || 
-      (activeTab === "completed" && (bet.status === "won" || bet.status === "lost"))
+    if (activeTab === "all") return ownedBets
+    return ownedBets.filter(bet => 
+      (activeTab === "active" && !bet.settled) || 
+      (activeTab === "completed" && bet.settled)
     )
   }
 
   const getFilteredParticipatedBets = () => {
-    if (activeTab === "all") return mockParticipatedBets
-    return mockParticipatedBets.filter(bet => 
-      (activeTab === "active" && bet.status === "active") || 
-      (activeTab === "completed" && (bet.status === "won" || bet.status === "lost"))
+    if (activeTab === "all") return participatedBets
+    return participatedBets.filter(bet => 
+      (activeTab === "active" && !bet.settled) || 
+      (activeTab === "completed" && bet.settled)
     )
   }
 
   // Render a single bet card
-  const renderBetCard = (bet: any) => (
-    <Card key={bet.id} className="bg-white/10 border-white/20 backdrop-blur-sm overflow-hidden">
-      <div
-        className={`h-1 w-full ${
-          bet.status === "active"
-            ? "bg-neon-yellow"
-            : bet.status === "won"
-              ? "bg-neon-green"
-              : "bg-neon-pink"
-        }`}
-      />
-      <CardHeader>
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-white">{bet.title}</CardTitle>
-          <div
-            className={`px-2 py-1 rounded-full text-xs font-medium ${
-              bet.status === "active"
-                ? "bg-neon-yellow/20 text-neon-yellow"
-                : bet.status === "won"
-                  ? "bg-neon-green/20 text-neon-green"
-                  : "bg-neon-pink/20 text-neon-pink"
-            }`}
-          >
-            {bet.status.charAt(0).toUpperCase() + bet.status.slice(1)}
+  const renderBetCard = (bet: BetData) => (
+    <Link href={`/bets/${bet.id}`} key={bet.id}>
+      <Card className="bg-white/10 border-white/20 backdrop-blur-sm overflow-hidden hover:bg-white/20 transition-colors cursor-pointer">
+        <div
+          className={`h-1 w-full ${
+            !bet.settled ? "bg-neon-yellow" : "bg-neon-green"
+          }`}
+        />
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-white">{bet.title}</CardTitle>
+            <div
+              className={`px-2 py-1 rounded-full text-xs font-medium ${
+                !bet.settled
+                  ? "bg-neon-yellow/20 text-neon-yellow"
+                  : "bg-neon-green/20 text-neon-green"
+              }`}
+            >
+              {bet.settled ? "Settled" : "Active"}
+            </div>
           </div>
-        </div>
-        <CardDescription className="text-white/70">
-          {bet.isOwner && bet.participants ? 
-            `${bet.participants} participants • Ends ${bet.endDate}` : 
-            `Created by ${bet.creator} • Ends ${bet.endDate}`
-          }
-        </CardDescription>
+          <CardDescription className="text-white/70">
+            {bet.creator.substring(0, 6)}...{bet.creator.substring(bet.creator.length - 4)} • 
+            {bet.totalParticipants} participant{bet.totalParticipants !== 1 ? 's' : ''}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 mb-2">
+            <div className="p-3 bg-white/5 rounded-md">
+              <p className="text-sm text-white/70">{bet.side1Title}</p>
+              <p className="text-lg font-medium text-neon-yellow">{bet.side1Total} ETH</p>
+            </div>
+            <div className="p-3 bg-white/5 rounded-md">
+              <p className="text-sm text-white/70">{bet.side2Title}</p>
+              <p className="text-lg font-medium text-neon-pink">{bet.side2Total} ETH</p>
+            </div>
+          </div>
+          
+          {bet.yourSide && (
+            <div className="mt-2 p-2 bg-white/5 rounded-md border border-white/10">
+              <p className="text-sm text-white/70">
+                Your stake: {bet.yourAmount} ETH on {bet.yourSide === 1 ? bet.side1Title : bet.side2Title}
+              </p>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="border-t border-white/10 bg-white/5">
+          <div className="flex w-full items-center justify-between">
+            <div className="flex items-center gap-1">
+              <Coins className="h-4 w-4 text-neon-yellow" />
+              <span className="text-sm text-white/70">Total Pool:</span>
+            </div>
+            <span className="font-medium text-white">{bet.totalPool} ETH</span>
+          </div>
+        </CardFooter>
+      </Card>
+    </Link>
+  )
+
+  const renderLoadingCard = () => (
+    <Card className="bg-white/10 border-white/20 backdrop-blur-sm overflow-hidden animate-pulse">
+      <div className="h-1 w-full bg-white/20" />
+      <CardHeader>
+        <div className="h-6 bg-white/20 rounded mb-2 w-2/3"></div>
+        <div className="h-4 bg-white/20 rounded w-1/2"></div>
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-white/70">Your Stake</p>
-            <p className="text-lg font-medium text-white">{bet.amount}</p>
-          </div>
-          <div>
-            <p className="text-sm text-white/70">Odds</p>
-            <p className="text-lg font-medium text-white">{bet.odds}</p>
-          </div>
+          <div className="h-12 bg-white/10 rounded"></div>
+          <div className="h-12 bg-white/10 rounded"></div>
         </div>
       </CardContent>
-      <CardFooter className="border-t border-white/10 bg-white/5">
-        <div className="flex w-full items-center justify-between">
-          <div className="flex items-center gap-1">
-            <Coins className="h-4 w-4 text-neon-yellow" />
-            <span className="text-sm text-white/70">Potential Win:</span>
-          </div>
-          <span className="font-medium text-white">{bet.potentialWinnings}</span>
-        </div>
+      <CardFooter className="border-t border-white/10">
+        <div className="h-5 bg-white/20 rounded w-full"></div>
       </CardFooter>
     </Card>
   )
@@ -193,9 +333,9 @@ export default function HomePage() {
                 <Plus className="mr-2 h-5 w-5" /> Create a New Bet
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-cyber-blue border-neon-pink">
+            <DialogContent className="sm:max-w-[425px] bg-black/90 border-white/20 text-white">
               <DialogHeader>
-                <DialogTitle className="text-white">Create a New Bet</DialogTitle>
+                <DialogTitle className="text-neon-pink">Create a New Bet</DialogTitle>
                 <DialogDescription className="text-white/70">
                   Create a new bet for others to participate in.
                 </DialogDescription>
@@ -203,15 +343,43 @@ export default function HomePage() {
               <form onSubmit={handleSubmit}>
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="bet-name" className="text-white">
-                      Bet Name
+                    <Label htmlFor="title" className="text-white">
+                      Bet Title
                     </Label>
                     <Input
-                      id="bet-name"
-                      placeholder="e.g., ETH Price > $3,000 by June"
-                      className="bg-white/10 text-white border-white/20"
-                      value={betName}
-                      onChange={(e) => setBetName(e.target.value)}
+                      id="title"
+                      placeholder="e.g., ETH Price Prediction"
+                      className="bg-black/60 border-white/20 text-white"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="side1" className="text-white">
+                      Side 1 Title
+                    </Label>
+                    <Input
+                      id="side1"
+                      placeholder="e.g., Price will exceed $3,000"
+                      className="bg-black/60 border-white/20 text-white"
+                      value={side1Title}
+                      onChange={(e) => setSide1Title(e.target.value)}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="grid gap-2">
+                    <Label htmlFor="side2" className="text-white">
+                      Side 2 Title
+                    </Label>
+                    <Input
+                      id="side2"
+                      placeholder="e.g., Price will stay below $3,000"
+                      className="bg-black/60 border-white/20 text-white"
+                      value={side2Title}
+                      onChange={(e) => setSide2Title(e.target.value)}
                       required
                     />
                   </div>
@@ -220,9 +388,9 @@ export default function HomePage() {
                   <Button 
                     type="submit" 
                     className="bg-neon-pink text-white hover:bg-neon-pink/90"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isCreatingBet}
                   >
-                    {isSubmitting ? "Creating..." : "Create Bet"} <ArrowRight className="ml-2 h-4 w-4" />
+                    {isSubmitting || isCreatingBet ? "Creating..." : "Create Bet"} <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
                 </DialogFooter>
               </form>
@@ -262,7 +430,11 @@ export default function HomePage() {
                 <h4 className="text-xl font-semibold text-white">Bets You Created</h4>
               </div>
               
-              {getFilteredOwnedBets().length > 0 ? (
+              {isLoadingOwned ? (
+                <div className="grid gap-4">
+                  {[1, 2].map(i => <div key={i}>{renderLoadingCard()}</div>)}
+                </div>
+              ) : getFilteredOwnedBets().length > 0 ? (
                 <div className="grid gap-4">
                   {getFilteredOwnedBets().map(bet => renderBetCard(bet))}
                 </div>
@@ -287,7 +459,11 @@ export default function HomePage() {
                 <h4 className="text-xl font-semibold text-white">Bets You Joined</h4>
               </div>
               
-              {getFilteredParticipatedBets().length > 0 ? (
+              {isLoadingParticipated ? (
+                <div className="grid gap-4">
+                  {[1, 2].map(i => <div key={i}>{renderLoadingCard()}</div>)}
+                </div>
+              ) : getFilteredParticipatedBets().length > 0 ? (
                 <div className="grid gap-4">
                   {getFilteredParticipatedBets().map(bet => renderBetCard(bet))}
                 </div>
@@ -298,9 +474,11 @@ export default function HomePage() {
                   </div>
                   <h3 className="mt-3 text-lg font-medium text-white">No joined bets</h3>
                   <p className="mt-1 text-sm text-white/70">Explore available bets to participate!</p>
-                  <Button className="mt-3 bg-neon-green text-white hover:bg-neon-green/90 text-sm py-1">
-                    Explore Bets
-                  </Button>
+                  <Link href="/bets">
+                    <Button className="mt-3 bg-neon-green text-white hover:bg-neon-green/90 text-sm py-1">
+                      Explore Bets
+                    </Button>
+                  </Link>
                 </Card>
               )}
             </div>

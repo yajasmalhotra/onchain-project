@@ -15,65 +15,36 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
-
-// Mock data - will be replaced with real data fetching
-const mockBets = {
-  "1": {
-    id: "1",
-    title: "ETH Price > $3,000",
-    creator: "0xC5fD32E7E839783d8BDB2A2441C2e4B56a3aa564", // Hardcoded owner address
-    amount: "0.5 ETH",
-    participants: 12,
-    endDate: "May 15, 2025",
-    description: "This bet will be won if the ETH price exceeds $3,000 by the end date.",
-    totalPool: "6.0 ETH",
-    status: "active",
-  },
-  "2": {
-    id: "2",
-    title: "BTC Price < $50,000",
-    creator: "0xA2b4C6D8E0F1G2h3I4j5K6l7M8n9O0p1Q2r3S4t5", // Random owner address
-    amount: "0.8 ETH",
-    participants: 8,
-    endDate: "June 20, 2025",
-    description: "This bet will be won if the BTC price falls below $50,000 by the end date.",
-    totalPool: "6.4 ETH",
-    status: "active",
-  },
-  "3": {
-    id: "3",
-    title: "SOL Price > $150",
-    creator: "0x7890abcDEF1234567890ABCdef123456789abCDEF", // Random owner address
-    amount: "0.3 ETH",
-    participants: 5,
-    endDate: "July 10, 2025",
-    description: "This bet will be won if SOL price exceeds $150 by the end date.",
-    totalPool: "1.5 ETH",
-    status: "won",
-  },
-  "4": {
-    id: "4",
-    title: "DOGE Reaches Top 3 by Market Cap",
-    creator: "0x0123456789abcdef0123456789AbCdEf01234567", // Random owner address
-    amount: "1.0 ETH",
-    participants: 20,
-    endDate: "December 31, 2025",
-    description: "This bet will be won if Dogecoin becomes one of the top 3 cryptocurrencies by market cap.",
-    totalPool: "20.0 ETH",
-    status: "lost",
-  }
-}
+import { useContract } from "@/hooks/useContract"
+import { formatEther, parseEther } from "viem"
 
 export function BetClient({ betId }: { betId: string }) {
   const { address } = useAccount()
   const [isOwner, setIsOwner] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const bet = mockBets[betId as keyof typeof mockBets]
+  const [selectedSide, setSelectedSide] = useState<1 | 2 | null>(null)
+  
+  // Contract interactions
+  const { 
+    useGetBet, 
+    useGetAllSide1Participants, 
+    useGetAllSide2Participants, 
+    useJoinBet,
+    useSettleBet
+  } = useContract()
+  
+  const { data: bet, isLoading: isLoadingBet } = useGetBet(betId)
+  const { data: side1Participants } = useGetAllSide1Participants(betId)
+  const { data: side2Participants } = useGetAllSide2Participants(betId)
+  const { joinBet, isLoading: isJoiningBet } = useJoinBet()
+  const { settleBet, isLoading: isSettlingBet } = useSettleBet()
   
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [settleDialogOpen, setSettleDialogOpen] = useState(false)
   const [betAmount, setBetAmount] = useState("")
   const [betError, setBetError] = useState("")
+  const [winningSide, setWinningSide] = useState<1 | 2 | null>(null)
   
   useEffect(() => {
     // If bet doesn't exist, there's no need to check ownership
@@ -85,9 +56,10 @@ export function BetClient({ betId }: { betId: string }) {
     const checkIfOwner = async () => {
       setIsLoading(true)
       try {
-        // Direct comparison with the connected wallet address
-        const isCreator = address && bet.creator.toLowerCase() === address.toLowerCase()
-        setIsOwner(isCreator || false)
+        // Contract returns an array with the bet data
+        const owner = bet[0] as string
+        // Compare with the connected wallet address from contract data
+        setIsOwner(address ? owner.toLowerCase() === address.toLowerCase() : false)
       } catch (error) {
         console.error("Failed to check bet ownership:", error)
         setIsOwner(false)
@@ -102,10 +74,37 @@ export function BetClient({ betId }: { betId: string }) {
       setIsOwner(false)
       setIsLoading(false)
     }
-  }, [address, betId, bet?.creator])
+  }, [address, betId, bet])
+
+  // Transform contract data into a more usable format
+  const activeBet = bet ? {
+    title: bet[5] as string, // title is at index 5
+    creator: bet[0] as string, // owner is at index 0
+    side1Title: bet[1] as string, // side1Title is at index 1
+    side2Title: bet[2] as string, // side2Title is at index 2
+    side1Total: formatEther(bet[3] as bigint), // side1Total is at index 3
+    side2Total: formatEther(bet[4] as bigint), // side2Total is at index 4
+    totalPool: formatEther((bet[3] as bigint) + (bet[4] as bigint)),
+    settled: bet[6] as boolean, // settled is at index 6
+    side1Participants: side1Participants?.length || 0,
+    side2Participants: side2Participants?.length || 0,
+    totalParticipants: (side1Participants?.length || 0) + (side2Participants?.length || 0),
+  } : null
   
   // If bet not found, display a "Not Found" page
-  if (!bet) {
+  if (isLoadingBet) {
+    return (
+      <div className="max-w-4xl mx-auto py-8">
+        <Card className="bg-white/10 border-white/20 backdrop-blur-sm p-8">
+          <CardContent className="p-8 flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-neon-pink"></div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!activeBet) {
     return (
       <div className="max-w-4xl mx-auto py-8">
         <Card className="bg-white/10 border-white/20 backdrop-blur-sm text-center p-8">
@@ -141,32 +140,60 @@ export function BetClient({ betId }: { betId: string }) {
     setBetError("")
     setDialogOpen(true)
   }
+
+  const handleOpenSettleDialog = () => {
+    if (!address) {
+      return
+    }
+    
+    setSettleDialogOpen(true)
+  }
   
   const handleBet = async () => {
-    // Validate bet amount
+    // Validate bet amount and side selection
     if (!betAmount || parseFloat(betAmount) <= 0) {
       setBetError("Please enter a valid amount")
       return
     }
     
+    if (selectedSide !== 1 && selectedSide !== 2) {
+      setBetError("Please select a side to bet on")
+      return
+    }
+    
     try {
-      // Here you would call your contract to place the bet
-      console.log(`Placing bet of ${betAmount} ETH on bet ID ${betId}`)
-      
-      // In a real implementation, you would:
-      // 1. Create a contract instance
-      // 2. Call the bet function with the amount
-      // 3. Handle transaction completion
-      
-      // Mock successful transaction
-      alert(`Successfully placed bet of ${betAmount} ETH!`)
+      // Call contract to join the bet
+      await joinBet({
+        betId,
+        side: selectedSide, 
+        amount: betAmount
+      })
       
       // Reset and close dialog
       setBetAmount("")
+      setSelectedSide(null)
       setDialogOpen(false)
     } catch (error) {
       console.error("Error placing bet:", error)
       setBetError("Failed to place bet. Please try again.")
+    }
+  }
+
+  const handleSettleBet = async () => {
+    if (winningSide !== 1 && winningSide !== 2) {
+      return
+    }
+    
+    try {
+      await settleBet({
+        betId,
+        winningSide
+      })
+      
+      setWinningSide(null)
+      setSettleDialogOpen(false)
+    } catch (error) {
+      console.error("Error settling bet:", error)
     }
   }
 
@@ -176,14 +203,14 @@ export function BetClient({ betId }: { betId: string }) {
         <CardHeader>
           <div className="flex justify-between items-start">
             <div>
-              <CardTitle className="text-2xl text-white mb-2">{bet.title}</CardTitle>
+              <CardTitle className="text-2xl text-white mb-2">{activeBet.title}</CardTitle>
               <CardDescription className="text-white/70">
-                Created by {bet.creator.substring(0, 6)}...{bet.creator.substring(bet.creator.length - 4)} • Bet ID: {betId}
+                Created by {activeBet.creator.substring(0, 6)}...{activeBet.creator.substring(activeBet.creator.length - 4)} • Bet ID: {betId}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <div className="px-3 py-1 rounded-full bg-neon-yellow/20 text-neon-yellow text-sm font-medium">
-                {bet.status.charAt(0).toUpperCase() + bet.status.slice(1)}
+                {activeBet.settled ? "Settled" : "Active"}
               </div>
               {isOwner && (
                 <div className="px-3 py-1 rounded-full bg-neon-pink/20 text-neon-pink text-sm font-medium">
@@ -200,26 +227,45 @@ export function BetClient({ betId }: { betId: string }) {
                 <p className="text-sm text-white/70">Total Pool</p>
                 <div className="flex items-center gap-2">
                   <Coins className="h-5 w-5 text-neon-yellow" />
-                  <p className="text-xl font-medium text-white">{bet.totalPool}</p>
+                  <p className="text-xl font-medium text-white">{activeBet.totalPool} ETH</p>
                 </div>
               </div>
               <div className="space-y-2">
                 <p className="text-sm text-white/70">Participants</p>
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-neon-yellow" />
-                  <p className="text-xl font-medium text-white">{bet.participants}</p>
+                  <p className="text-xl font-medium text-white">{activeBet.totalParticipants}</p>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-sm text-white/70">Description</p>
-              <p className="text-white">{bet.description}</p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="text-sm text-white/70">End Date</p>
-              <p className="text-white">{bet.endDate}</p>
+            <div className="space-y-4">
+              <p className="text-sm text-white/70">Betting Sides</p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 rounded-lg border border-white/20 bg-white/5">
+                  <div className="font-medium text-neon-yellow mb-2">{activeBet.side1Title}</div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-white/70">Pool:</span>
+                    <span className="text-white">{activeBet.side1Total} ETH</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-sm text-white/70">Participants:</span>
+                    <span className="text-white">{activeBet.side1Participants}</span>
+                  </div>
+                </div>
+                
+                <div className="p-4 rounded-lg border border-white/20 bg-white/5">
+                  <div className="font-medium text-neon-pink mb-2">{activeBet.side2Title}</div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-white/70">Pool:</span>
+                    <span className="text-white">{activeBet.side2Total} ETH</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-sm text-white/70">Participants:</span>
+                    <span className="text-white">{activeBet.side2Participants}</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="pt-4">
@@ -229,12 +275,15 @@ export function BetClient({ betId }: { betId: string }) {
                 </Button>
               ) : isOwner ? (
                 <div className="space-y-3">
-                  <Button className="w-full bg-neon-yellow text-black hover:bg-neon-yellow/90">
-                    Manage Bet
-                  </Button>
-                  <Button variant="outline" className="w-full border-neon-pink text-neon-pink hover:bg-neon-pink/10">
-                    Cancel Bet
-                  </Button>
+                  {!activeBet.settled && (
+                    <Button 
+                      className="w-full bg-neon-yellow text-black hover:bg-neon-yellow/90"
+                      onClick={handleOpenSettleDialog}
+                      disabled={isSettlingBet}
+                    >
+                      {isSettlingBet ? "Processing..." : "Settle Bet"}
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div>
@@ -242,8 +291,9 @@ export function BetClient({ betId }: { betId: string }) {
                   <Button 
                     className="w-full bg-neon-pink text-white hover:bg-neon-pink/90"
                     onClick={handleOpenBetDialog}
+                    disabled={isJoiningBet || activeBet.settled}
                   >
-                    Enter Bet
+                    {isJoiningBet ? "Processing..." : activeBet.settled ? "Bet Settled" : "Enter Bet"}
                   </Button>
                 </div>
               )}
@@ -258,11 +308,35 @@ export function BetClient({ betId }: { betId: string }) {
           <DialogHeader>
             <DialogTitle className="text-neon-pink">Enter Bet</DialogTitle>
             <DialogDescription className="text-white/70">
-              How much ETH would you like to bet on "{bet.title}"?
+              How much ETH would you like to bet on "{activeBet.title}"?
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm text-white/70">
+                Select a Side
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <Button 
+                  type="button" 
+                  variant={selectedSide === 1 ? "default" : "outline"}
+                  className={selectedSide === 1 ? "bg-neon-yellow text-black" : "border-neon-yellow text-neon-yellow"}
+                  onClick={() => setSelectedSide(1)}
+                >
+                  {activeBet.side1Title}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant={selectedSide === 2 ? "default" : "outline"}
+                  className={selectedSide === 2 ? "bg-neon-pink text-white" : "border-neon-pink text-neon-pink"}
+                  onClick={() => setSelectedSide(2)}
+                >
+                  {activeBet.side2Title}
+                </Button>
+              </div>
+            </div>
+            
             <div className="space-y-2">
               <label htmlFor="betAmount" className="text-sm text-white/70">
                 Amount (ETH)
@@ -287,6 +361,57 @@ export function BetClient({ betId }: { betId: string }) {
             </Button>
             <Button className="bg-neon-pink text-white hover:bg-neon-pink/90" onClick={handleBet}>
               Place Bet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Settle Bet Dialog */}
+      <Dialog open={settleDialogOpen} onOpenChange={setSettleDialogOpen}>
+        <DialogContent className="bg-black/90 border-white/20 text-white">
+          <DialogHeader>
+            <DialogTitle className="text-neon-yellow">Settle Bet</DialogTitle>
+            <DialogDescription className="text-white/70">
+              Select the winning side for "{activeBet.title}"
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm text-white/70">
+                Select Winning Side
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <Button 
+                  type="button" 
+                  variant={winningSide === 1 ? "default" : "outline"}
+                  className={winningSide === 1 ? "bg-neon-yellow text-black" : "border-neon-yellow text-neon-yellow"}
+                  onClick={() => setWinningSide(1)}
+                >
+                  {activeBet.side1Title}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant={winningSide === 2 ? "default" : "outline"}
+                  className={winningSide === 2 ? "bg-neon-pink text-white" : "border-neon-pink text-neon-pink"}
+                  onClick={() => setWinningSide(2)}
+                >
+                  {activeBet.side2Title}
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettleDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              className="bg-neon-yellow text-black hover:bg-neon-yellow/90" 
+              onClick={handleSettleBet}
+              disabled={winningSide !== 1 && winningSide !== 2}
+            >
+              Settle Bet
             </Button>
           </DialogFooter>
         </DialogContent>
