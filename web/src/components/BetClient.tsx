@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Coins, Users, AlertTriangle } from "lucide-react"
+import { Coins, Users, AlertTriangle, Link as LinkIcon, Share2, Copy, Check } from "lucide-react"
 import { useAccount } from "wagmi"
 import { 
   Dialog, 
@@ -11,18 +11,24 @@ import {
   DialogDescription, 
   DialogFooter, 
   DialogHeader, 
-  DialogTitle 
+  DialogTitle,
+  DialogTrigger
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useContract } from "@/hooks/useContract"
 import { formatEther, parseEther } from "viem"
+import { useRouter } from "next/navigation"
+import QRCode from "react-qr-code"
 
 export function BetClient({ betId }: { betId: string }) {
   const { address } = useAccount()
+  const router = useRouter()
   const [isOwner, setIsOwner] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [selectedSide, setSelectedSide] = useState<1 | 2 | null>(null)
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
   
   // Contract interactions
   const { 
@@ -45,6 +51,22 @@ export function BetClient({ betId }: { betId: string }) {
   const [betAmount, setBetAmount] = useState("")
   const [betError, setBetError] = useState("")
   const [winningSide, setWinningSide] = useState<1 | 2 | null>(null)
+  
+  // Get the full URL for sharing
+  const getShareUrl = () => {
+    if (typeof window !== 'undefined') {
+      return window.location.href
+    }
+    return ''
+  }
+  
+  // Handle copying the link to clipboard
+  const copyToClipboard = () => {
+    const url = getShareUrl()
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
   
   useEffect(() => {
     // If bet doesn't exist, there's no need to check ownership
@@ -209,6 +231,54 @@ export function BetClient({ betId }: { betId: string }) {
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
+              <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="border-neon-yellow text-neon-yellow hover:bg-neon-yellow/10"
+                  >
+                    <Share2 className="h-4 w-4 mr-1" /> Share
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="bg-black/90 border-white/20 text-white max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="text-neon-yellow">Share This Bet</DialogTitle>
+                    <DialogDescription className="text-white/70">
+                      Share this bet with friends or on social media
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-4 py-4">
+                    <div className="flex flex-col items-center justify-center p-4 bg-white rounded-lg">
+                      <QRCode
+                        value={getShareUrl()}
+                        size={180}
+                        bgColor="#FFFFFF"
+                        fgColor="#000000"
+                        level="H"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <Input
+                        readOnly
+                        value={getShareUrl()}
+                        className="bg-black/60 border-white/20 text-white flex-1"
+                      />
+                      <Button 
+                        variant="outline" 
+                        size="icon" 
+                        className="border-neon-yellow text-neon-yellow hover:bg-neon-yellow/10"
+                        onClick={copyToClipboard}
+                      >
+                        {copied ? <Check className="h-4 w-4" data-testid="check-icon" /> : <Copy className="h-4 w-4" data-testid="copy-icon" />}
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              
               <div className="px-3 py-1 rounded-full bg-neon-yellow/20 text-neon-yellow text-sm font-medium">
                 {activeBet.settled ? "Settled" : "Active"}
               </div>
