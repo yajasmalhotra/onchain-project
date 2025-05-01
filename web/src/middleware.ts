@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
-export function middleware(request: NextRequest) {
+export function middleware() {
   const response = NextResponse.next();
 
   // Set CSP headers
@@ -12,7 +11,7 @@ export function middleware(request: NextRequest) {
       "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.walletconnect.com https://*.walletconnect.org",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https://*.walletconnect.com https://*.walletconnect.org",
-      "connect-src 'self' https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org",
+      "connect-src 'self' https://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.com wss://*.walletconnect.org https://*.walletlink.org wss://*.walletlink.org",
       "frame-src 'self' https://*.walletconnect.com https://*.walletconnect.org",
     ].join('; ')
   );
