@@ -54,6 +54,9 @@ describe('Middleware', () => {
     expect(headerValue).toContain('wss://*.walletconnect.org');
     expect(headerValue).toContain('https://*.walletlink.org');
     expect(headerValue).toContain('wss://*.walletlink.org');
+    expect(headerValue).toContain('https://eth.merkle.io');
+    expect(headerValue).toContain('https://*.coinbase.com');
+    expect(headerValue).toContain('https://chain-proxy.wallet.coinbase.com');
     
     // Check that response is returned
     expect(result).toBe(mockResponse);
