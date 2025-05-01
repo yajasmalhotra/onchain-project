@@ -1,12 +1,18 @@
 import { http, createConfig } from 'wagmi';
 import { mainnet, sepolia } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
+import { injected, coinbaseWallet } from 'wagmi/connectors';
 
 export const config = createConfig({
   chains: [mainnet, sepolia],
   connectors: [
     injected({
       target: 'metaMask',
+    }),
+    injected({
+      target: 'coinbaseWallet',
+    }),
+    coinbaseWallet({
+      appName: 'EtherBets',
     }),
   ],
   transports: {
