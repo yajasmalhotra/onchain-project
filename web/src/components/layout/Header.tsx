@@ -1,7 +1,7 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
 import { Flame } from "lucide-react"
+import { WalletConnect } from "@/components/WalletConnect"
 
 export function Header() {
   return (
@@ -11,9 +11,7 @@ export function Header() {
           <Flame className="h-8 w-8 text-neon-pink" />
           <h1 className="text-2xl font-bold text-white">EtherBets</h1>
         </div>
-        <Button variant="outline" className="border-neon-pink text-white hover:bg-neon-pink/20">
-          Connect Wallet
-        </Button>
+        <WalletConnect className="border-neon-pink text-white hover:bg-neon-pink/20" />
       </div>
     </header>
   )
