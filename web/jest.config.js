@@ -19,8 +19,8 @@ const customJestConfig = {
     '^@/providers/(.*)$': '<rootDir>/src/providers/$1',
   },
   transformIgnorePatterns: [
-    // This is necessary to prevent Jest from transforming node_modules except for wagmi
-    '/node_modules/(?!(wagmi|@wagmi)/)',
+    // This is necessary to prevent Jest from transforming node_modules except for specified packages
+    '/node_modules/(?!(wagmi|@wagmi|viem)/)/',
   ],
 };
 
