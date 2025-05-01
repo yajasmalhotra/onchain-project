@@ -1,12 +1,13 @@
 import { useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { useToast } from '@/components/ui/use-toast'
 import { formatEther, parseEther } from 'viem'
+import { sepolia } from 'wagmi/chains'
 
 // Contract address
-const CONTRACT_ADDRESS = '0xfe051ad21bc4c2195b14262160f89dd8d7dca437'
+export const CONTRACT_ADDRESS = '0xfe051ad21bc4c2195b14262160f89dd8d7dca437'
 
 // Contract ABI
-const CONTRACT_ABI = [
+export const CONTRACT_ABI = [
   {"inputs":[{"internalType":"address","name":"_admin","type":"address"}],"stateMutability":"nonpayable","type":"constructor"},
   {"inputs":[],"name":"BetAlreadySettled","type":"error"},
   {"inputs":[],"name":"ParticipantAlreadyJoined","type":"error"},
